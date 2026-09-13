@@ -1,0 +1,169 @@
+{
+  "api_key": "IVY26-29EB9C01EE82",
+  "candidate": {
+    "name": "Pallavi Chahar",
+    "email": "demo1@ivy.homes",
+    "repo_url": "https://github.com/Pallavi2005-creator/Ivy_Homes",
+    "demo_url": "https://ivy-homes-mern.vercel.app"
+  },
+  "answers": {
+    "total_listing_records": 3400,
+    "unique_properties": 3136,
+    "active_listings": 2709,
+    "corrupt_listing_ids": [
+      "100-6000323", "100-6000338", "100-6001461", "100-6001968", "100-6002071",
+      "DWE-6000010", "DWE-6001015", "DWE-6002663", "DWE-6002846",
+      "MAG-6000453", "MAG-6000631", "MAG-6001135", "MAG-6002834",
+      "SQU-6001477", "SQU-6003044", "ZER-6000468", "ZER-6000669"
+    ],
+    "total_monthly_rent": 4537100,
+    "avg_price_per_sqft_2bhk": 14189.85,
+    "costliest_project": {
+      "project_id": "P60090",
+      "price_max_inr": 989000000
+    },
+    "listings_last_7_days": 124,
+    "fake_listing_ids": [
+      "100-6000578", "100-6000678", "100-6001599",
+      "MAG-6002472", "MAG-6002941", "SQU-6000395"
+    ],
+    "projects_with_wrong_listing_count": 301
+  },
+  "findings": [
+    {
+      "endpoint": "*",
+      "category": "auth",
+      "documented": "API key as ?api_key= query parameter",
+      "actual": "Must be provided in the X-API-Key request header",
+      "how_found": "Tested the API through Invoke-RestMethod",
+      "impact": "High - Unable to access any endpoints using documented approach",
+      "evidence": []
+    },
+    {
+      "endpoint": "POST /auth/login",
+      "category": "auth",
+      "documented": "Returns token, expires_in=86400 (24h). User object has name field.",
+      "actual": "Returns access_token, expires_in=900 (15m). User object only has email. Includes refresh_token.",
+      "how_found": "Inspected the login response body",
+      "impact": "High - Application session logic needs to account for 15m expiry and refresh tokens",
+      "evidence": []
+    },
+    {
+      "endpoint": "GET /v1/listings",
+      "category": "pagination",
+      "documented": "Uses page and limit parameters. Max limit 200.",
+      "actual": "Uses offset and limit parameters. Page parameter is silently ignored. Max limit is 50.",
+      "how_found": "Iterating through listings using offset vs page parameters",
+      "impact": "High - Incorrect pagination implementation would lead to fetching the same 50 records repeatedly",
+      "evidence": []
+    },
+    {
+      "endpoint": "GET /v1/listings",
+      "category": "sorting",
+      "documented": "sort_by and order parameters work",
+      "actual": "Both parameters are accepted but silently ignored. Results are returned in default order.",
+      "how_found": "Testing with sort_by=price&order=desc vs asc",
+      "impact": "Medium - Frontend must handle sorting client-side if needed",
+      "evidence": []
+    },
+    {
+      "endpoint": "GET /v1/listings",
+      "category": "filters",
+      "documented": "Returns only active listings",
+      "actual": "Returns ALL listings, including those with is_live=false",
+      "how_found": "Data analysis showed 691 listings with is_live=false",
+      "impact": "Medium - Frontend must explicitly filter for is_live=true if only active listings should be shown",
+      "evidence": []
+    },
+    {
+      "endpoint": "GET /v1/listing/{id}",
+      "category": "missing_endpoint",
+      "documented": "GET /v1/listing/{listing_id} (singular)",
+      "actual": "Returns 404. Correct path is /v1/listings/{listing_id} (plural)",
+      "how_found": "Testing individual listing endpoints",
+      "impact": "Medium - Simple typo in docs, easy to work around",
+      "evidence": []
+    },
+    {
+      "endpoint": "GET /v1/listings/{id}/similar",
+      "category": "missing_endpoint",
+      "documented": "Documented as available",
+      "actual": "Returns 404. Endpoint does not exist",
+      "how_found": "Testing similar listings endpoint",
+      "impact": "Low - Feature must be omitted or implemented client-side",
+      "evidence": []
+    },
+    {
+      "endpoint": "GET /v1/analytics/summary",
+      "category": "missing_endpoint",
+      "documented": "Documented as available",
+      "actual": "Returns 404. Endpoint does not exist",
+      "how_found": "Testing analytics endpoint",
+      "impact": "Medium - Analytics must be computed manually from raw data",
+      "evidence": []
+    },
+    {
+      "endpoint": "GET /v1/favourites",
+      "category": "missing_endpoint",
+      "documented": "Documented as /v1/favourites",
+      "actual": "Returns 404. Correct path is /v1/saved",
+      "how_found": "Brute-forcing possible paths for favourites",
+      "impact": "Medium - Must use undocumented /v1/saved endpoint",
+      "evidence": []
+    },
+    {
+      "endpoint": "GET /v1/projects",
+      "category": "units",
+      "documented": "price_min and price_max are in Indian rupees, integer",
+      "actual": "They are float values representing Crores (e.g. 1.66 = 1.66 Cr)",
+      "how_found": "Comparing project price_min with individual listing prices in the project",
+      "impact": "High - Prices will display incorrectly if not converted",
+      "evidence": ["P60001", "P60002", "P60004", "P60090"]
+    },
+    {
+      "endpoint": "GET /v1/listings",
+      "category": "units",
+      "documented": "carpet_area is in Square feet, integer, everywhere",
+      "actual": "Listings from magichomes website use square meters (e.g. 78 instead of ~840)",
+      "how_found": "Analyzing listings with carpet_area < 200 and computing price/sqft",
+      "impact": "High - Calculations like avg price/sqft will be skewed if not converted",
+      "evidence": ["MAG-6002472", "MAG-6000434", "MAG-6000794", "MAG-6001288"]
+    },
+    {
+      "endpoint": "GET /v1/listings",
+      "category": "data_quality",
+      "documented": "Each listing corresponds to exactly one physical property",
+      "actual": "6 listings have negative prices, 6 have floor > total_floors, 6 have carpet_area > super_built_up_area",
+      "how_found": "Data sanity checks across all 3400 listings",
+      "impact": "Medium - Corrupt data should be excluded from display and calculations",
+      "evidence": ["100-6001461", "100-6001968", "MAG-6000527"]
+    },
+    {
+      "endpoint": "GET /v1/listings",
+      "category": "fraud",
+      "documented": "Every listing corresponds to exactly one physical property",
+      "actual": "Some listings have suspiciously low prices (< ₹30,000) for sale properties, acting as bait",
+      "how_found": "Filtering for sale listings with price < 100,000",
+      "impact": "Medium - Fake listings generate false inquiries",
+      "evidence": ["100-6000578", "100-6000678", "100-6001599", "MAG-6002472", "MAG-6002941", "SQU-6000395"]
+    },
+    {
+      "endpoint": "POST /auth/refresh",
+      "category": "undocumented_endpoint",
+      "documented": "Not documented",
+      "actual": "Exists and accepts refresh_token to issue new access tokens",
+      "how_found": "Discovered refresh_token and refresh_url in login response",
+      "impact": "Positive - Allows implementing seamless sessions",
+      "evidence": []
+    },
+    {
+      "endpoint": "GET /v1/projects",
+      "category": "consistency",
+      "documented": "total_listings always agrees with GET /v1/listings?project_id=...",
+      "actual": "301 out of 400 projects have a total_listings count that disagrees with actual listing counts",
+      "how_found": "Counting listings grouped by project_id and comparing with total_listings",
+      "impact": "Low - Cannot trust the total_listings field",
+      "evidence": ["P60001", "P60002", "P60004"]
+    }
+  ]
+}
