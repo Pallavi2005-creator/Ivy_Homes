@@ -1,0 +1,9 @@
+node_modules
+.env
+.DS_Store
+dist
+*.log
+all_listings.json
+all_projects.json
+all_rentals.json
+*.py
